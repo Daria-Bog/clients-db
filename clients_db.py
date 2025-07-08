@@ -1,4 +1,6 @@
 import psycopg2
+from psycopg2 import sql
+
 
 
 def create_db(conn):
@@ -57,38 +59,24 @@ def add_phone(conn, client_id, phone):
         conn.commit()
         print(f"📱 Телефон {phone} добавлен клиенту с ID {client_id}")
 
-def change_client(conn, client_id, first_name=None, last_name=None, email=None, phones=None):
+def change_client(conn, client_id, first_name=None, last_name=None, email=None):
     with conn.cursor() as cur:
-        # Изменение имени
-        if first_name:
-            cur.execute("""
-                UPDATE clients SET first_name = %s WHERE id = %s;
-            """, (first_name, client_id))
+        cur.execute("SELECT id FROM clients WHERE id = %s;", (client_id,))
+        if not cur.fetchone():
+            print(f"❌ Клиент с id {client_id} не найден.")
+            return
 
-        # Изменение фамилии
-        if last_name:
-            cur.execute("""
-                UPDATE clients SET last_name = %s WHERE id = %s;
-            """, (last_name, client_id))
+    fields_to_update = {"first_name": first_name, "last_name": last_name, "email": email}
+    for field, value in fields_to_update.items():
+        if value:
+            with conn.cursor() as cur:
+                query = sql.SQL("UPDATE clients SET {field} = %s WHERE id = %s").format(
+                    field=sql.Identifier(field)
+                )
+                cur.execute(query, (value, client_id))
+                conn.commit()
+                print(f"✅ Поле {field} обновлено для клиента {client_id}")
 
-        # Изменение email
-        if email:
-            cur.execute("""
-                UPDATE clients SET email = %s WHERE id = %s;
-            """, (email, client_id))
-
-        # Обновление телефонов: удалим старые и добавим новые
-        if phones is not None:
-            cur.execute("""
-                DELETE FROM phones WHERE client_id = %s;
-            """, (client_id,))
-            for phone in phones:
-                cur.execute("""
-                    INSERT INTO phones (client_id, phone) VALUES (%s, %s);
-                """, (client_id, phone))
-
-        conn.commit()
-        print(f"✏️ Данные клиента с ID {client_id} обновлены.")
 
 def delete_phone(conn, client_id, phone):
     with conn.cursor() as cur:
@@ -151,7 +139,7 @@ with psycopg2.connect(database="clients_db", user="postgres", password="19071993
     add_phone(conn, 1, "+79007778899")
 
     # Изменим клиента
-    change_client(conn, 1, first_name="Иванка", email="ivanka@example.com", phones=["+79009998877"])
+    change_client(conn, 1, first_name="Иванка", email="ivanka@example.com")
 
     delete_phone(conn, 1, "+79009998877")
 
